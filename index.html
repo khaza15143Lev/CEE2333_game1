@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Balloon Shooter — Mapping and higher-order elements</title>
+<style>
+:root{
+  --paper:#EAF0E4; --grid:#D3DDCB; --card:#F8FAF4; --ink:#16243A; --muted:#566678;
+  --good:#1F7A4D; --ok:#0E8A3E; --bad:#B3261E; --flag:#F0B400; --sky:#DCEAF3;
+  --serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+@media (prefers-color-scheme:dark){
+  :root{--paper:#0E1621; --grid:#18232F; --card:#152030; --ink:#E6ECF4; --muted:#93A4B7; --good:#4CC38A; --ok:#4CD98B; --bad:#FF7B72; --sky:#16293B;}
+}
+*{box-sizing:border-box}
+html{color-scheme:light dark}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);line-height:1.45;
+  background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);background-size:24px 24px;min-height:100vh}
+main{max-width:860px;margin:0 auto;padding:14px 12px 30px}
+h1,h2{font-family:var(--serif);margin:0;line-height:1.15}
+button{font:inherit;color:inherit;cursor:pointer}
+:focus-visible{outline:3px solid var(--flag);outline-offset:2px}
+.bar{display:flex;flex-wrap:wrap;gap:0;border:2px solid var(--ink);background:var(--card);font-size:15px}
+.bar>div{padding:7px 14px;border-right:2px solid var(--ink)}
+.bar>div:last-child{border-right:0;margin-left:auto}
+.bar .t{font-family:var(--serif);font-weight:700;flex:1;min-width:150px}
+.hearts{color:var(--bad);letter-spacing:2px;font-size:17px}
+.qbox{border:2px solid var(--ink);border-top:0;background:var(--card);padding:12px 16px;min-height:92px}
+.qbox .q{font-family:var(--serif);font-size:clamp(18px,3.2vw,24px);font-weight:700}
+.qbox .s{font-size:14px;color:var(--muted);margin-top:4px}
+.qbox .s.ok{color:var(--ok);font-size:16px;font-weight:700}
+.qbox .s.no{color:var(--bad);font-weight:600}
+.stage{position:relative;border:2px solid var(--ink);border-top:0;background:var(--sky);overflow:hidden;touch-action:manipulation}
+canvas{display:block;width:100%;cursor:crosshair}
+.overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:color-mix(in srgb,var(--paper) 82%,transparent);padding:14px}
+.overlay[hidden]{display:none}
+.panel{background:var(--card);border:2px solid var(--ink);padding:20px 22px;max-width:480px;width:100%;max-height:100%;overflow:auto}
+.panel h2{font-size:28px;margin-bottom:8px}
+.panel p{margin:0 0 10px}
+.btn{background:var(--ink);color:var(--paper);border:2px solid var(--ink);padding:10px 20px;font-weight:700;border-radius:2px}
+.btn.alt{background:transparent;color:var(--ink)}
+.row{display:flex;gap:10px;flex-wrap:wrap}
+.miss{margin:8px 0 12px;padding:0;list-style:none;font-size:14px}
+.miss li{border-top:1px solid var(--ink);padding:6px 0}
+.miss b{color:var(--good)}
+.mini{font-size:13px;color:var(--muted)}
+
+.panel.wide{max-width:640px}
+.fx{font-family:ui-monospace,Menlo,monospace;font-size:14px;background:var(--paper);border:1.5px solid var(--ink);padding:8px 10px;margin:8px 0;line-height:1.65;overflow-x:auto}
+.key{border-left:5px solid var(--flag);padding:6px 12px;margin:10px 0;background:var(--paper)}
+.why{font-size:14px;color:var(--muted)}
+ul.tight{margin:0 0 10px;padding-left:20px}
+.stl{list-style:none;margin:10px 0;padding:0;border-top:2px solid var(--ink)}
+.stl li{border-bottom:1px solid var(--ink)}
+.stl button{display:grid;grid-template-columns:34px 1fr auto;gap:10px;align-items:center;width:100%;text-align:left;background:transparent;border:0;padding:9px 6px}
+.stl button:hover{background:var(--paper)}
+.stl .no{font-family:ui-monospace,monospace;font-weight:700;font-size:18px}
+.stl .tt{font-family:var(--serif);font-weight:700}
+.stl .sm{font-size:13px;color:var(--muted)}
+.starsm{color:var(--flag);-webkit-text-stroke:1px var(--ink);letter-spacing:2px;white-space:nowrap}
+.spd{display:flex;align-items:center;gap:8px}
+.spd input{width:110px;accent-color:var(--ink)}
+</style>
+</head>
+<body>
+<main>
+  <div class="bar">
+    <div class="t">Balloon Shooter · Mapping and higher-order elements</div>
+    <div id="cnt">Q 0 / 0</div>
+    <div class="hearts" id="lives" aria-label="lives"></div>
+    <div id="score">0 pts</div>
+    <div class="spd"><label for="spd">Speed</label><input type="range" id="spd" min="40" max="200" step="10" value="100"><span id="spdv" style="font-family:ui-monospace,Menlo,monospace;min-width:3.4em">100%</span></div>
+    <div><button class="btn alt" id="pause" style="padding:2px 10px">Pause</button></div>
+    <div><button class="btn alt" id="snd" style="padding:2px 10px" aria-pressed="true">Sound on</button></div>
+  </div>
+  <div class="qbox" aria-live="polite"><div class="q" id="qt">Ready?</div><div class="s" id="qs">Pop the balloon with the correct answer.</div></div>
+  <div class="stage" id="stage">
+    <canvas id="cv" aria-label="Game area with four balloons"></canvas>
+    <div class="overlay" id="ovStart"><div class="panel wide" id="mapPanel"></div></div>
+    <div class="overlay" id="ovPause" hidden><div class="panel"><h2>Paused</h2><p>The balloons are frozen. Press Resume, P or Esc to continue.</p><div class="row"><button class="btn" id="resume">Resume</button></div></div></div>
+    <div class="overlay" id="ovEnd" hidden><div class="panel" id="endPanel"></div></div>
+  </div>
+</main>
+
+<script>
+/* ---------- question bank (short answers so they fit in balloons) ---------- */
+const B=(q,a,w,e)=>({q,a,w,e});
+const fm=x=>String(Number(Number(x).toPrecision(4)));
+const pickOne=a=>a[Math.floor(Math.random()*a.length)];
+/* make 3 distinct wrong answers: use the given ones first, then the spare list */
+function uq(correct,wrongs,spare){const out=[],seen=new Set([String(correct)]);
+  for(const w of [...wrongs,...(spare||[])]){const t=String(w);if(!seen.has(t)){seen.add(t);out.push(t)}if(out.length===3)break}
+  let k=2;while(out.length<3){const t=fm(Number(correct)*(1+k*.37)+k);if(!seen.has(t)){seen.add(t);out.push(t)}k++}return out}
+const L0=s=>-0.5*s*(1-s),L1=s=>1-s*s,L2=s=>0.5*s*(1+s);
+
+const POOL=[
+{id:5,title:'Isoparametric map and Jacobian',lect:'Lecture 9',
+ why:'dL and det[J] are the two scale factors in every load integral of Part A.',
+ qs:[
+ B('Isoparametric means the same N interpolates…','Geometry and displacement',['Only geometry','Only loads','Only stress'],'x = ΣNᵢxᵢ and u = ΣNᵢuᵢ.'),
+ B('The area element in natural coordinates is…','det[J] dξ dη',['dξ dη','[J] dξ dη','dL dξ'],'Local area scale factor.'),
+ B('det[J] ≤ 0 at a Gauss point means…','Distorted or inverted element',['Incompressible material','Mesh too fine','Load too large'],'The map folds over itself.'),
+ B('For a w × h rectangle, det[J] =','wh/4',['wh','wh/2','w/h'],'(w/2)(h/2).'),
+ B('The area of a rectangle in terms of det[J] is…','4 det[J]',['det[J]','2 det[J]','det[J]/4'],'The parent square has area 4.'),
+ B('Natural coordinates run from…','−1 to 1',['0 to 1','0 to L','−L to L'],'Parent square [−1, 1]².'),
+ B('Four-node numbering starts at…','Lower left, counter-clockwise',['Upper left, clockwise','Centre','Any corner, any direction'],'Must match the shape-function order.'),
+ B('Along the edge η = 1, the edge coordinate is…','s = ξ',['s = η','s = ξ + η','s = 1'],'η is fixed at 1.'),
+ ()=>{const w=pickOne([4,6,8,10,12]),h=pickOne([2,3,4,6]),a=w*h/4;
+   return B(`Rectangular element ${w} × ${h}. Find det[J].`,fm(a),uq(fm(a),[fm(w*h),fm(w*h/2),fm(w*h/8),fm(4*w*h)]),`wh/4 = ${fm(a)}.`)},
+ ()=>{const d=pickOne([3,5,7.5,12]),a=4*d;
+   return B(`A rectangle has constant det[J] = ${d}. Its area is…`,fm(a),uq(fm(a),[fm(d),fm(2*d),fm(d/4),fm(8*d)]),`Area = 4 det[J] = ${fm(a)}.`)}
+ ]},
+/* ---------------------------------------------------------------- 6 */
+{id:6,title:'Nine-node and serendipity elements',lect:'Lectures 10 and 11',
+ why:'Part A works its examples on the nine-node element and contrasts the eight-node serendipity element for body forces.',
+ qs:[
+ B('How many nodes does the Lagrange quadrilateral have?','9',['8','4','12'],'4 corners, 4 mid-sides, 1 centre.'),
+ B('Total DOF of a nine-node plane element?','18',['9','16','27'],'9 × 2.'),
+ B('Total DOF of an eight-node serendipity plane element?','16',['8','18','24'],'8 × 2.'),
+ B('The serendipity element has no…','Centre node',['Corner nodes','Mid-side nodes','Shape functions'],'Hence 8 nodes, not 9.'),
+ B('N₉ for the nine-node element is…','(1 − ξ²)(1 − η²)',['¼(1 − ξ)(1 − η)','1 − ξ²','ξ²η²'],'L₁,₂(ξ) L₁,₂(η).'),
+ B('Node 7 sits at (ξ, η) =','(0, 1)',['(1, 0)','(0, −1)','(−1, 0)'],'Top mid-side node.'),
+ B('Node 6 sits at (ξ, η) =','(1, 0)',['(0, 1)','(−1, 0)','(0, 0)'],'Right mid-side node.'),
+ B('Gauss rule used for the nine-node stiffness?','3 × 3',['1 × 1','2 × 2','4 × 4'],'Nine points.'),
+ B('A mid-side node makes the element edge…','Quadratic',['Linear','Cubic','Rigid'],'Three nodes fit a parabola.'),
+ B('Transition elements are used to…','Join linear and quadratic',['Switch to dynamics','Apply loads','Remove nodes'],'They keep the shared edge compatible.'),
+ ]}
+];
+
+/* ---------- helpers ---------- */
+const $=s=>document.querySelector(s);
+const shuffle=a=>{a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a};
+const rand=(a,b)=>a+Math.random()*(b-a);
+const COLORS=['#FFC857','#7FD1B9','#8FC1E3','#F4978E','#C7B3F0','#F9B872'];
+const INK=()=>getComputedStyle(document.documentElement).getPropertyValue('--ink').trim();
+const cv=$('#cv'),ctx=cv.getContext('2d');
+let W=720,H=460,DPR=1,bw=110,bh=132;
+
+/* sound (tiny WebAudio blips) */
+let audio=null,soundOn=true;
+function blip(f,d,type='square',v=.05,f2){if(!soundOn)return;try{audio=audio||new (window.AudioContext||window.webkitAudioContext)();
+  const o=audio.createOscillator(),g=audio.createGain();o.type=type;o.frequency.setValueAtTime(f,audio.currentTime);
+  if(f2)o.frequency.exponentialRampToValueAtTime(f2,audio.currentTime+d);
+  g.gain.setValueAtTime(v,audio.currentTime);g.gain.exponentialRampToValueAtTime(.0001,audio.currentTime+d);
+  o.connect(g).connect(audio.destination);o.start();o.stop(audio.currentTime+d)}catch(e){}}
+$('#snd').onclick=e=>{soundOn=!soundOn;e.target.textContent=soundOn?'Sound on':'Sound off';e.target.setAttribute('aria-pressed',soundOn)};
+
+/* ---------- state ---------- */
+let TOTAL=5;const LIVES=3;
+let state='idle',deck=[],qi=0,lives=LIVES,score=0,streak=0,correctCount=0,missed=[];
+let balloons=[],darts=[],parts=[],floaters=[],cur=null,fbT=0,lastShot=0,shake=0,qStart=0;
+
+function resize(){
+  const w=$('#stage').clientWidth,oldW=W,oldH=H;
+  W=w;H=Math.round(Math.min(560,Math.max(400,window.innerHeight*0.56)));
+  DPR=window.devicePixelRatio||1;cv.width=W*DPR;cv.height=H*DPR;cv.style.height=H+'px';ctx.setTransform(DPR,0,0,DPR,0,0);
+  bw=Math.max(78,Math.min(124,W/4.3));bh=bw*1.2;
+  balloons.forEach(b=>{b.x*=W/oldW;b.y*=H/oldH});
+}
+window.addEventListener('resize',resize);
+
+function setLives(){$('#lives').textContent='♥'.repeat(lives)+'♡'.repeat(LIVES-lives)}
+function setHud(){$('#cnt').textContent=`Q ${Math.min(qi+1,TOTAL)} / ${TOTAL}`;$('#score').textContent=score+' pts';setLives()}
+
+function nextQuestion(){
+  if(qi>=TOTAL||lives<=0){return endStation()}
+  cur=deck[qi];state='play';
+  $('#qt').textContent=cur.q;const s=$('#qs');s.className='s';s.textContent='Click or tap a balloon, or press A–D.';
+  const pos=plan[qi]!==undefined?plan[qi]:Math.floor(Math.random()*4),opts=shuffle(cur.w);opts.splice(pos,0,cur.a);const cols=shuffle(COLORS),lane=W/4;
+  const base=Math.min(120,42+qi*4.2);
+  balloons=opts.map((t,i)=>({t,ok:t===cur.a,x:lane*(i+.5)+rand(-lane*.1,lane*.1),y:H+bh/2+rand(10,110),
+    vy:base*rand(.85,1.15),ph:rand(0,6.28),amp:rand(6,14),col:cols[i],alive:true,mark:null,key:'ABCD'[i]}));
+  qStart=performance.now();setHud();
+}
+
+/* ---------- shooting ---------- */
+function bx(b,t){return b.x+Math.sin(t*1.2+b.ph)*b.amp}
+function fire(tx,ty){
+  const now=performance.now();if(state!=='play'||now-lastShot<220)return;lastShot=now;
+  const sx=W/2,sy=H-10,a=Math.atan2(ty-sy,tx-sx);
+  darts.push({x:sx,y:sy,a,v:1500,life:1.2});blip(520,.08,'triangle',.05,260);
+}
+function pointer(e){const r=cv.getBoundingClientRect();const p=e.touches?e.touches[0]:e;return [(p.clientX-r.left)*(W/r.width),(p.clientY-r.top)*(H/r.height)]}
+cv.addEventListener('pointerdown',e=>{e.preventDefault();if(state==='feedback'&&performance.now()-fbT>600){nextQuestion();return}const [x,y]=pointer(e);fire(x,y)});
+window.addEventListener('keydown',e=>{
+  if(state==='idle'&&(e.key==='Enter'))return;
+  if(state==='feedback'&&(e.key===' '||e.key==='Enter')&&performance.now()-fbT>400){nextQuestion();return}
+  const k=e.key.toUpperCase(),i='ABCD'.indexOf(k)>=0?'ABCD'.indexOf(k):'1234'.indexOf(k);
+  if(i>=0&&state==='play'&&balloons[i]&&balloons[i].alive){const t=performance.now()/1000,b=balloons[i];fire(bx(b,t),b.y)}
+});
+
+/* ---------- resolve ---------- */
+function pop(b,t,col){
+  for(let i=0;i<16;i++)parts.push({x:bx(b,t),y:b.y,vx:rand(-160,160),vy:rand(-220,60),life:rand(.5,.9),c:col||b.col,s:rand(3,7)});
+  blip(b.ok?660:140,.18,b.ok?'triangle':'sawtooth',.07,b.ok?990:70);
+}
+function resolve(hit,t){
+  if(state!=='play')return;state=hit?'feedback':'feedback';fbT=performance.now();
+  const ok=hit&&hit.ok,s=$('#qs');
+  const correctB=balloons.find(b=>b.ok);
+  if(hit)hit.alive=false,pop(hit,t);
+  if(ok){
+    const prog=Math.max(0,Math.min(1,(H-correctB.y)/(H+bh)));
+    const bonus=Math.round(50*(1-prog)),st=Math.min(streak,5)*20,pts=100+bonus+st;
+    score+=pts;streak++;correctCount++;floaters.push({x:bx(hit,t),y:hit.y,t:'+'+pts,life:1.1,c:'good'});
+    balloons.forEach(b=>{if(b.alive&&b!==hit){b.alive=false;pop(b,t)}});
+    s.className='s ok';s.textContent='Correct. '+cur.e+(streak>1?`  Streak ×${streak}`:'');
+  }else{
+    lives--;streak=0;shake=.3;missed.push({q:cur.q,a:cur.a,e:cur.e,why:hit?'wrong balloon':'escaped'});
+    if(hit)hit.mark='bad';correctB.mark='good';
+    s.className='s no';s.textContent=(hit?`Wrong. The answer is “${cur.a}”. `:`It got away. The answer is “${cur.a}”. `)+cur.e;
+    balloons.forEach(b=>{if(b!==correctB&&b.alive&&b!==hit)b.fade=true});
+  }
+  qi++;setHud();
+  if(lives<=0||qi>=TOTAL)setTimeout(()=>{if(state==='feedback')endStation()},2400);
+}
+
+
+/* ---------- loop ---------- */
+let last=performance.now();
+function frame(now){
+  const dt=Math.min(.05,(now-last)/1000);last=now;const t=now/1000;
+  update(dt,t);draw(t);requestAnimationFrame(frame);
+}
+function update(dt,t){
+  if(state==='paused')return;
+  if(state==='play'||state==='feedback'){
+    balloons.forEach(b=>{
+      if(b.alive||b.fade){b.y-=b.vy*dt*speedMul*(state==='feedback'?.5:1)}
+      if(b.fade&&b.y<-bh)b.fade=false;
+    });
+    if(state==='play'){
+      const cb=balloons.find(b=>b.ok);
+      if(cb&&cb.alive&&cb.y<-bh*.6){cb.alive=false;resolve(null,t)}
+    }
+  }
+  /* darts: step in small increments so fast darts cannot skip a balloon */
+  darts.forEach(d=>{
+    let dist=d.v*dt,steps=Math.ceil(dist/8),sd=dist/steps;
+    for(let i=0;i<steps&&!d.dead;i++){
+      d.x+=Math.cos(d.a)*sd;d.y+=Math.sin(d.a)*sd;
+      if(state==='play'){
+        for(const b of balloons){if(!b.alive)continue;const dx=(d.x-bx(b,t))/(bw/2),dy=(d.y-b.y)/(bh/2);
+          if(dx*dx+dy*dy<=1){d.dead=true;resolve(b,t);break}}
+      }
+    }
+    d.life-=dt;if(d.x<-30||d.x>W+30||d.y<-30||d.life<=0)d.dead=true;
+  });
+  darts=darts.filter(d=>!d.dead);
+  parts.forEach(p=>{p.vy+=520*dt;p.x+=p.vx*dt;p.y+=p.vy*dt;p.life-=dt});parts=parts.filter(p=>p.life>0);
+  floaters.forEach(f=>{f.y-=40*dt;f.life-=dt});floaters=floaters.filter(f=>f.life>0);
+  if(state==='feedback'&&performance.now()-fbT>(lives<=0||qi>=TOTAL?99999:3200)&&qi<TOTAL&&lives>0)nextQuestion();
+  if(shake>0)shake-=dt;
+}
+function wrap(text,maxW,font){
+  ctx.font=font;const words=text.split(' '),lines=[];let line='';
+  for(const w of words){const test=line?line+' '+w:w;if(ctx.measureText(test).width>maxW&&line){lines.push(line);line=w}else line=test}
+  lines.push(line);return lines;
+}
+function drawBalloon(b,t){
+  const x=bx(b,t),y=b.y,rx=bw/2,ry=bh/2,ink=INK();
+  let alpha=1;if(b.fade)alpha=.35;
+  ctx.save();ctx.globalAlpha=alpha;
+  /* string */
+  ctx.strokeStyle=ink;ctx.lineWidth=1.3;ctx.beginPath();ctx.moveTo(x,y+ry+6);
+  for(let i=1;i<=6;i++)ctx.lineTo(x+Math.sin(t*3+i+b.ph)*5,y+ry+6+i*7);ctx.stroke();
+  /* body */
+  ctx.beginPath();ctx.moveTo(x,y+ry);
+  ctx.bezierCurveTo(x+rx*1.15,y+ry*.55,x+rx*1.1,y-ry*1.05,x,y-ry);
+  ctx.bezierCurveTo(x-rx*1.1,y-ry*1.05,x-rx*1.15,y+ry*.55,x,y+ry);ctx.closePath();
+  ctx.fillStyle=b.col;ctx.fill();ctx.lineWidth=2.4;ctx.strokeStyle=b.mark==='good'?'#1F7A4D':b.mark==='bad'?'#B3261E':ink;
+  if(b.mark)ctx.lineWidth=5;ctx.stroke();
+  ctx.fillStyle='rgba(255,255,255,.45)';ctx.beginPath();ctx.ellipse(x-rx*.42,y-ry*.4,rx*.14,ry*.26,-.4,0,6.3);ctx.fill();
+  /* knot */
+  ctx.fillStyle=ink;ctx.beginPath();ctx.moveTo(x,y+ry+1);ctx.lineTo(x-6,y+ry+9);ctx.lineTo(x+6,y+ry+9);ctx.closePath();ctx.fill();
+  /* label */
+  let fs=Math.round(bw/7.6),lines;
+  for(;fs>=10;fs--){lines=wrap(b.t,bw*.74,`700 ${fs}px system-ui,sans-serif`);if(lines.length<=3&&Math.max(...lines.map(l=>ctx.measureText(l).width))<=bw*.78)break}
+  ctx.fillStyle='#16243A';ctx.textAlign='center';ctx.textBaseline='middle';ctx.font=`700 ${fs}px system-ui,sans-serif`;
+  const lh=fs*1.18,top=y-ry*.08-(lines.length-1)*lh/2;lines.forEach((l,i)=>ctx.fillText(l,x,top+i*lh));
+  /* key chip */
+  ctx.font=`700 ${Math.max(11,fs-1)}px ui-monospace,monospace`;ctx.fillStyle='rgba(22,36,58,.65)';ctx.fillText(b.key,x,y-ry*.62);
+  ctx.restore();
+  if(b.mark==='good'){ctx.save();ctx.strokeStyle='#1F7A4D';ctx.lineWidth=3;ctx.beginPath();ctx.ellipse(x,y,rx+9+Math.sin(t*8)*2,ry+9+Math.sin(t*8)*2,0,0,6.3);ctx.stroke();ctx.restore()}
+}
+function draw(t){
+  const ink=INK();ctx.save();
+  if(shake>0)ctx.translate(rand(-4,4),rand(-4,4));
+  ctx.clearRect(-10,-10,W+20,H+20);
+  /* clouds */
+  ctx.fillStyle='rgba(255,255,255,.28)';
+  [[.15,.2,60],[.55,.12,80],[.85,.3,50]].forEach(([px,py,r],i)=>{const cx=((px*W+t*8*(i+1))%(W+200))-100,cy=py*H;
+    ctx.beginPath();ctx.arc(cx,cy,r*.5,0,6.3);ctx.arc(cx+r*.5,cy+4,r*.4,0,6.3);ctx.arc(cx-r*.5,cy+6,r*.35,0,6.3);ctx.fill()});
+  balloons.forEach(b=>{if(b.alive||b.fade||b.mark)drawBalloon(b,t)});
+  /* launcher */
+  ctx.fillStyle=ink;ctx.fillRect(W/2-26,H-8,52,8);ctx.beginPath();ctx.moveTo(W/2-12,H-8);ctx.lineTo(W/2,H-22);ctx.lineTo(W/2+12,H-8);ctx.fill();
+  /* darts */
+  darts.forEach(d=>{ctx.save();ctx.translate(d.x,d.y);ctx.rotate(d.a);ctx.strokeStyle=ink;ctx.lineWidth=2.5;ctx.beginPath();ctx.moveTo(-26,0);ctx.lineTo(0,0);ctx.stroke();
+    ctx.fillStyle='#B3261E';ctx.beginPath();ctx.moveTo(8,0);ctx.lineTo(-2,-4);ctx.lineTo(-2,4);ctx.fill();
+    ctx.strokeStyle='#B3261E';ctx.beginPath();ctx.moveTo(-26,0);ctx.lineTo(-32,-5);ctx.moveTo(-26,0);ctx.lineTo(-32,5);ctx.stroke();ctx.restore()});
+  parts.forEach(p=>{ctx.globalAlpha=Math.max(0,p.life*1.3);ctx.fillStyle=p.c;ctx.fillRect(p.x,p.y,p.s,p.s);ctx.globalAlpha=1});
+  floaters.forEach(f=>{ctx.globalAlpha=Math.min(1,f.life*1.5);ctx.font='700 24px Georgia,serif';ctx.textAlign='center';ctx.fillStyle='#1F7A4D';ctx.strokeStyle='#fff';ctx.lineWidth=4;ctx.strokeText(f.t,f.x,f.y);ctx.fillText(f.t,f.x,f.y);ctx.globalAlpha=1});
+  ctx.restore();
+}
+
+
+/* ---------- quiz flow (no briefing screens) ---------- */
+let speedMul=1;
+$('#spd').oninput=e=>{speedMul=e.target.value/100;$('#spdv').textContent=e.target.value+'%'};
+let plan=[];
+function mkPlan(n){for(let t=0;t<200;t++){const p=shuffle(Array.from({length:n},(_,i)=>i%4));if(p.every((v,i)=>i===0||v!==p[i-1]))return p}return shuffle(Array.from({length:n},(_,i)=>i%4))}
+let pausedFrom=null,pauseT0=0;
+function togglePause(){
+  if(state==='paused'){const d=performance.now()-pauseT0;fbT+=d;qStart+=d;state=pausedFrom;pausedFrom=null;$('#ovPause').hidden=true;$('#pause').textContent='Pause';
+    if(state==='feedback'&&(lives<=0||qi>=TOTAL))endStation();return}
+  if(state!=='play'&&state!=='feedback')return;
+  pausedFrom=state;pauseT0=performance.now();state='paused';$('#ovPause').hidden=false;$('#pause').textContent='Resume';$('#resume').focus();
+}
+$('#pause').onclick=togglePause;$('#resume').onclick=togglePause;
+window.addEventListener('keydown',e=>{if(e.repeat)return;if(e.key==='p'||e.key==='P'||(e.key==='Escape'&&state==='paused'))togglePause()});
+document.addEventListener('visibilitychange',()=>{if(document.hidden&&(state==='play'||state==='feedback'))togglePause()});
+function showStart(){
+  state='idle';$('#ovEnd').hidden=true;$('#ovStart').hidden=false;
+  $('#qt').textContent='Ready?';$('#qs').className='s';$('#qs').textContent='Pop the balloon with the correct answer.';
+  $('#mapPanel').innerHTML=`<h2>Mapping and higher-order elements</h2>
+  <p>Twelve questions on the isoparametric map and Jacobian, and on the nine-node and serendipity elements. Four balloons carry answers. Shoot the correct one.</p>
+  <p class="mini">Click or tap a balloon to fire a dart, or press <b>A–D</b> (or 1–4). A wrong pop, or letting the correct balloon escape, costs a life. Three lives, and the balloons speed up as the round goes on. Use the <b>Speed</b> slider to slow them down or speed them up at any time. Some questions use new numbers every round.</p>
+  <div class="row"><button class="btn" id="go">Start</button></div>`;
+  $('#go').onclick=()=>{blip(440,.05,'triangle');startRound()};$('#go').focus();
+}
+function startRound(){
+  const all=POOL.flatMap(p=>p.qs),gens=all.filter(q=>typeof q==='function'),stat=shuffle(all.filter(q=>typeof q!=='function'));
+  deck=shuffle([...gens,...stat.slice(0,12-gens.length)]).map(q=>typeof q==='function'?q():q);TOTAL=deck.length;plan=mkPlan(TOTAL);pausedFrom=null;$('#ovPause').hidden=true;$('#pause').textContent='Pause';
+  qi=0;lives=LIVES;score=0;streak=0;correctCount=0;missed=[];darts=[];parts=[];floaters=[];
+  $('#ovStart').hidden=true;$('#ovEnd').hidden=true;nextQuestion();
+}
+function endStation(){
+  state='over';const failed=lives<=0;
+  const title=failed?'Out of lives':correctCount===qi?'Flawless':correctCount>=qi-2?'Excellent':'Finished';
+  $('#endPanel').innerHTML=`<h2>${title}</h2><p><b>${correctCount}</b> of ${qi} correct · ${score} pts</p>
+  ${missed.length?`<p class="mini">Review these:</p><ul class="miss">${missed.map(m=>`<li>${m.q}<br><b>${m.a}</b></li>`).join('')}</ul>`:'<p>No misses.</p>'}
+  <div class="row"><button class="btn" id="again">Play again</button></div>`;
+  $('#ovEnd').hidden=false;$('#again').focus();$('#again').onclick=startRound;
+  $('#qt').textContent='Round over';$('#qs').className='s';$('#qs').textContent='';
+}
+
+resize();setHud();showStart();requestAnimationFrame(frame);
+</script>
+</body>
+</html>
